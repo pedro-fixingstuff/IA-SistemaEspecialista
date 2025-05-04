@@ -1,77 +1,174 @@
 #include <iostream>
 using namespace std;
 
-# Estrutura de dados
-struct Sensores {
-    int condicao_oleo;             // 0 a 100
-    int km_desde_ultima_troca;     // km
-    int desgaste_pastilhas;        // 0 a 100
-    int fluido_freio;              // 0 a 100
-    int nivel_arrefecimento;       // 0 a 100
-    bool limp_mode;                // true = 1, false = 0
+enum Condicao_Oleo {
+    RUIM,
+    REGULAR,
+    IDEAL
 };
 
-# Fuzzificação
-string fuzzificar_oleo(int valor) {
-    if (valor <= 40) return "ruim";
-    else if (valor <= 60) return "regular";
-    else return "boa";
+// Condição do veículo num determinado momento
+struct Estado {
+    int km; // quilometragem
+    float condicao_oleo; // % (0-100)
+    float nivel_arrefecimento; // ml
+    float pressao_pneu[4]; // psi
+    Estado_Freios freios; // condição dos freios
+};
+
+struct Estado_Freios {
+    float espessura_discos; // mm
+    float espessura_pastilhas; // mm
+    float fluido_freio; // % (0-100)
+};
+
+// Condição anterior do veículo
+struct Estado_Anterior {
+    int km_ultima_revisao;
+    float nivel_arrefecimento; // ml, intervalo de 1 mês
+    float pressao_pneu[4]; // psi, intervalo de 10 min
+};
+
+// Fuzzificação e da condição do óleo
+Condicao_Oleo fuzzy_oleo(float condicao_oleo) {
+    // Funcão de pertinência para condição "ruim"
+    float mu_ruim;
+    if (condicao_oleo <= 20) {
+        mu_ruim = 1;
+    }
+    else if (condicao_oleo < 40) {
+        mu_ruim = (40 - condicao_oleo) / 20;
+    }
+    else {
+        mu_ruim = 0;
+    }
+
+    // Funcão de pertinência para condição "regular"
+    float mu_regular;
+    if (condicao_oleo <= 30) {
+        mu_regular = 0;
+    }
+    else if (condicao_oleo <= 50) {
+        mu_regular = (condicao_oleo - 30) / 20;
+    }
+    else if (condicao_oleo < 70) {
+        mu_regular = (70 - condicao_oleo) / 20;
+    }
+    else {
+        mu_regular = 0;
+    }
+
+    // Funcão de pertinência para condição "ideal"
+    float mu_ideal;
+    if (condicao_oleo <= 60) {
+        mu_ideal = 0;
+    }
+    else if (condicao_oleo < 80) {
+        mu_ideal = (condicao_oleo - 60) / 20;
+    }
+    else {
+        mu_ideal = 1;
+    }
+
+    if (mu_ruim > mu_regular && mu_ruim > mu_ideal) {
+        return Condicao_Oleo::RUIM;
+    }
+    else if (mu_regular > mu_ruim && mu_regular > mu_ideal) {
+        return Condicao_Oleo::REGULAR;
+    }
+    else {
+        return Condicao_Oleo::IDEAL;
+    }
 }
 
-// Regras do especialista
-void avaliar(const Sensores& s) {
-    cout << "\nAvaliação da manutenção:\n";
+// Regras do especialista, seguindo a árvore de decisão
+void avaliar(const Estado& s, const Estado_Anterior& sa) {
+    cout << "\nAvaliação de manutenção:\n";
 
-    string oleo = fuzzificar_oleo(s.condicao_oleo);
+    // Condição do óleo
+    if (fuzzy_oleo(s.condicao_oleo) == Condicao_Oleo::RUIM) {
+        cout << "Troca de óleo necessária.\n";
+    }
+    else if (fuzzy_oleo(s.condicao_oleo) == Condicao_Oleo::REGULAR) {
+        cout << "Sugere-se a troca de óleo.\n";
+    }
 
-    // Decisão baseada na variável fuzzy + crisp
-    if (oleo == "ruim" || s.km_desde_ultima_troca > 7000) {
-        cout << "Troca de óleo recomendada.\n";
+    // Variação do nível de arrefecimento
+    if ((sa.nivel_arrefecimento - s.nivel_arrefecimento) / 30 * 5) {
+        cout << "Verificar o radiador, reservatório e mangueiras de arrefecimento.\n";
+    }
+
+    // Pressão dos pneus
+    for (int i = 0; i < 4; i++) {
+        if (s.pressao_pneu[i] < 28 || s.pressao_pneu[i] > 38) {
+            // Variação da pressão
+            if (sa.pressao_pneu[i] - s.pressao_pneu[i] > 0.5) {
+                cout << "Há um furo no pneu " << i + 1 << ". É necessária a troca.\n";
+            }
+            else {
+                cout << "Pressão do pneu " << i + 1 << " baixa. Deve ser feita a recalibração.\n";
+            }
+        }
     }
 
     // Variável composta: condição geral dos freios
-    if (s.desgaste_pastilhas > 70 || s.fluido_freio < 40) {
+    if (s.freios.espessura_discos < 20 || s.freios.espessura_pastilhas < 4 || s.freios.fluido_freio < 75) {
         cout << "Manutenção do sistema de freios recomendada.\n";
     }
 
-    // Crisp + sinal de emergência (limp mode)
-    if (s.nivel_arrefecimento < 30 || s.limp_mode) {
-        cout << "Verificação imediata do sistema de arrefecimento.\n";
+    // Quilometragem desde a última revisão geral
+    if (s.km - sa.km_ultima_revisao >= 10000) {
+        cout << "Revisão geral recomendada.\n";
     }
 
     cout << "Diagnóstico finalizado.\n";
 }
 
 // Leitura de dados (por entradas de usuário)
-Sensores ler_entrada() {
-    Sensores s;
+void ler_entrada(const Estado& s) {
+    cout << "Digite a quilometragem do veículo (km): ";
+    cin >> s.km;
 
-    cout << "Digite a condicao do oleo (0-100): ";
+    cout << "Digite a condição do óleo (0-100): ";
     cin >> s.condicao_oleo;
 
-    cout << "Digite a quilometragem desde a ultima troca de oleo: ";
-    cin >> s.km_desde_ultima_troca;
+    for (int i = 0; i < 4; i++) {
+        cout << "Digite a pressão do pneu " << i + 1 << " (psi): ";
+        cin >> s.pressao_pneu[i];
+    }
 
-    cout << "Digite o desgaste das pastilhas de freio (0-100): ";
-    cin >> s.desgaste_pastilhas;
-
-    cout << "Digite o nivel do fluido de freio (0-100): ";
-    cin >> s.fluido_freio;
-
-    cout << "Digite o nivel do liquido de arrefecimento (0-100): ";
+    cout << "Digite o nivel do líquido de arrefecimento (ml): ";
     cin >> s.nivel_arrefecimento;
 
-    int limp;
-    cout << "O veiculo esta em limp mode? (1 para sim, 0 para nao): ";
-    cin >> limp;
-    s.limp_mode = (limp == 1);
+    cout << "Digite a espessura dos discos de freio (mm): ";
+    cin >> s.freios.espessura_discos;
 
-    return s;
+    cout << "Digite a espessura das pastilhas de freio (mm): ";
+    cin >> s.freios.espessura_pastilhas;
+
+    cout << "Digite o nivel do fluido de freio (0-100): ";
+    cin >> s.freios.fluido_freio;
 }
 
 int main() {
-    cout << "=== Sistema Especialista: Manutencao Veicular ===\n";
-    Sensores s = ler_entrada();
-    avaliar(s);
+    // https://github.com/alf-p-steinbach/C---how-to---make-non-English-text-work-in-Windows/blob/main/how-to-use-utf8-in-windows.md
+    #ifdef _WIN32
+    system("chcp 65001 >nul");
+    #endif
+
+    Estado s;
+
+    // Definir o estado anterior do veículo com valores arbitrários
+    Estado_Anterior sa;
+    sa.km_ultima_revisao = 50000;
+    sa.nivel_arrefecimento = 900.0;
+    sa.pressao_pneu[0] = 33.0;
+    sa.pressao_pneu[0] = 33.0;
+    sa.pressao_pneu[0] = 33.0;
+    sa.pressao_pneu[0] = 33.0;
+
+    cout << "=== Sistema Especialista: Manutenção Veicular ===\n";
+    ler_entrada(s);
+    avaliar(s, sa);
     return 0;
 }
