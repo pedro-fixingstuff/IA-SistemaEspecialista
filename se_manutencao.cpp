@@ -1,3 +1,6 @@
+/* Projeto de sistema especialista
+Alunos: Paulo Hermans e Pedro Garcia */
+
 #include <iostream>
 using namespace std;
 
@@ -7,6 +10,12 @@ enum Condicao_Oleo {
     IDEAL
 };
 
+struct Estado_Freios {
+    float espessura_discos; // mm
+    float espessura_pastilhas; // mm
+    float fluido_freio; // % (0-100)
+};
+
 // Condição do veículo num determinado momento
 struct Estado {
     int km; // quilometragem
@@ -14,12 +23,6 @@ struct Estado {
     float nivel_arrefecimento; // ml
     float pressao_pneu[4]; // psi
     Estado_Freios freios; // condição dos freios
-};
-
-struct Estado_Freios {
-    float espessura_discos; // mm
-    float espessura_pastilhas; // mm
-    float fluido_freio; // % (0-100)
 };
 
 // Condição anterior do veículo
@@ -86,15 +89,16 @@ void avaliar(const Estado& s, const Estado_Anterior& sa) {
     cout << "\nAvaliação de manutenção:\n";
 
     // Condição do óleo
-    if (fuzzy_oleo(s.condicao_oleo) == Condicao_Oleo::RUIM) {
+    Condicao_Oleo cond_oleo_fuzzy = fuzzy_oleo(s.condicao_oleo);
+    if (cond_oleo_fuzzy == Condicao_Oleo::RUIM) {
         cout << "Troca de óleo necessária.\n";
     }
-    else if (fuzzy_oleo(s.condicao_oleo) == Condicao_Oleo::REGULAR) {
+    else if (cond_oleo_fuzzy == Condicao_Oleo::REGULAR) {
         cout << "Sugere-se a troca de óleo.\n";
     }
 
-    // Variação do nível de arrefecimento
-    if ((sa.nivel_arrefecimento - s.nivel_arrefecimento) / 30 * 5) {
+    // Variação do nível de arrefecimento, comparando com o limiar de 5 ml/d
+    if ((sa.nivel_arrefecimento - s.nivel_arrefecimento) / 30 >= 5) {
         cout << "Verificar o radiador, reservatório e mangueiras de arrefecimento.\n";
     }
 
@@ -125,7 +129,7 @@ void avaliar(const Estado& s, const Estado_Anterior& sa) {
 }
 
 // Leitura de dados (por entradas de usuário)
-void ler_entrada(const Estado& s) {
+void ler_entrada(Estado& s) {
     cout << "Digite a quilometragem do veículo (km): ";
     cin >> s.km;
 
@@ -137,7 +141,7 @@ void ler_entrada(const Estado& s) {
         cin >> s.pressao_pneu[i];
     }
 
-    cout << "Digite o nivel do líquido de arrefecimento (ml): ";
+    cout << "Digite o nível do líquido de arrefecimento (ml): ";
     cin >> s.nivel_arrefecimento;
 
     cout << "Digite a espessura dos discos de freio (mm): ";
@@ -146,7 +150,7 @@ void ler_entrada(const Estado& s) {
     cout << "Digite a espessura das pastilhas de freio (mm): ";
     cin >> s.freios.espessura_pastilhas;
 
-    cout << "Digite o nivel do fluido de freio (0-100): ";
+    cout << "Digite o nível do fluido de freio (0-100): ";
     cin >> s.freios.fluido_freio;
 }
 
@@ -163,9 +167,9 @@ int main() {
     sa.km_ultima_revisao = 50000;
     sa.nivel_arrefecimento = 900.0;
     sa.pressao_pneu[0] = 33.0;
-    sa.pressao_pneu[0] = 33.0;
-    sa.pressao_pneu[0] = 33.0;
-    sa.pressao_pneu[0] = 33.0;
+    sa.pressao_pneu[1] = 33.0;
+    sa.pressao_pneu[2] = 33.0;
+    sa.pressao_pneu[3] = 33.0;
 
     cout << "=== Sistema Especialista: Manutenção Veicular ===\n";
     ler_entrada(s);
