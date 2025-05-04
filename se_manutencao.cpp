@@ -110,7 +110,7 @@ void avaliar(const Estado& s, const Estado_Anterior& sa) {
                 cout << "Há um furo no pneu " << i + 1 << ". É necessária a troca.\n";
             }
             else {
-                cout << "Pressão do pneu " << i + 1 << " baixa. Deve ser feita a recalibração.\n";
+                cout << "Pressão do pneu " << i + 1 << " fora do padrão. Deve ser feita a recalibração.\n";
             }
         }
     }
@@ -174,5 +174,10 @@ int main() {
     cout << "=== Sistema Especialista: Manutenção Veicular ===\n";
     ler_entrada(s);
     avaliar(s, sa);
+
+    #ifdef _WIN32
+    system("pause");
+    #endif
+
     return 0;
 }
